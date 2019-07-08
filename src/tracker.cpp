@@ -79,7 +79,7 @@ cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
 
     sor.setInputCloud (cloudPtr);
     //sor.setLeafSize (0.01f, 0.01f, 0.01f);
-    sor.setLeafSize (0.01f, 0.01f, 0.01f);//modified
+    sor.setLeafSize (0.007f, 0.007f, 0.007f);//modified
     sor.filter (cloud_filtered);
     // Change from type sensor_msgs::PointCloud2 to pcl::PointXYZ
     pcl::fromPCLPointCloud2(cloud_filtered, *downsampled_XYZ);
@@ -363,7 +363,7 @@ cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
         else
         {
           std::cerr << "PointCloud representing the cylindrical component: " << cloud_cylinder->points.size () << " data points." << std::endl;
-          // writer.write ("table_scene_mug_stereo_textured_cylinder.pcd", *cloud_cylinder, false);
+          writer.write ("table_scene_mug_stereo_textured_cylinder.pcd", *cloud_cylinder, false);
         }
         // ROS_INFO("Cloud in: %zu, Cloud out: %zu", cloud_filtered2->points.size(), cloud_cylinder->points.size ());
         // if (cloud_cylinder->points.size() * 1.0/ cloud_filtered2->points.size() < 0.5) {
