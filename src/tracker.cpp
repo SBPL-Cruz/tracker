@@ -2,6 +2,10 @@
 #include <Eigen/Dense>
 #include <iostream>
 #include <set>
+#include <fstream>
+#include <string>
+#include <vector>
+using namespace std;
 // PCL specific includes
 #include <pcl/common/centroid.h>
 #include <pcl/filters/crop_box.h>
@@ -49,8 +53,12 @@ bool g_has_transform = false;
 int g_next_id = 0;
 char target_frame[]="base_footprint";
 pcl::PCDWriter writer;
+ofstream outfile;
+ros::Time start;
+ros::Duration t;
 
-tf::Transform get_tf_from_stamped_tf(tf::StampedTransform sTf) {
+tf::Transform get_tf_from_stamped_tf(tf::StampedTransform sTf) 
+{
    tf::Transform tf(sTf.getBasis(),sTf.getOrigin()); //construct a transform using elements of sTf
    //getBasis():Return the basis matrix for the rotation
    //getOrigin():Return the origin vector translation
@@ -67,7 +75,7 @@ cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
     if (!ros::ok())
     	return;
 
-  ///@{    Downsample
+  ///@{**********Downsample****************
     pcl::PointCloud<pcl::PointXYZ>::Ptr downsampled_XYZ  (new pcl::PointCloud<pcl::PointXYZ>);
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_f  (new pcl::PointCloud<pcl::PointXYZ>);
     sensor_msgs::PointCloud2::Ptr downsampled (new sensor_msgs::PointCloud2);
@@ -99,7 +107,7 @@ cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
     ROS_INFO("downsampling at: %f", d.toSec());
   ///@}
 
-  ///@{    Transform cloud
+  ///@{**********Transform cloud***********
     pcl::PointCloud<pcl::PointXYZ> transformed_cloud;
 
     if (!g_has_transform) {
@@ -113,18 +121,17 @@ cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
         g_has_transform = true;
     }
     
-    //   0.6446           0       -0.7646     0.032
-    //   -0.7646          0       -0.6446     0.948
-    //      0             1         0         0.657
-    //      0             0         0           1
     pcl_ros::transformPointCloud(*downsampled_XYZ, transformed_cloud, get_tf_from_stamped_tf(g_transform));
     *downsampled_XYZ  = transformed_cloud;
     d = ros::Time::now() - begin;
+
+    //export transformed cloud
     //if (!downsampled_XYZ->points.empty ())
     //{writer.write ("transform.pcd", *downsampled_XYZ, false);}
 
-    #if 0
     //publish downsampled pointcloud
+    #if 0
+    
     sensor_msgs::PointCloud2::Ptr output_cropped (new sensor_msgs::PointCloud2);
     pcl::toROSMsg (*downsampled_XYZ, *output_cropped);
     output_cropped->header.frame_id = target_frame;
@@ -135,37 +142,24 @@ cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
     ROS_INFO("transformation at: %f", d.toSec());
   ///@}
 
-  ///@{   Crop region of interest
-
-    /* Eigen::Vector4f minPoint; 
-    minPoint[0]=0.3;  // define minimum point x 
-    minPoint[1]=1.2;  // define minimum point y 
-    minPoint[2]=0.66;  // define minimum point z 
-    Eigen::Vector4f maxPoint; 
-    maxPoint[0]=0.61;  // define max point x 
-    maxPoint[1]=1.7;  // define max point y 
-    maxPoint[2]=1.0;  // define max point z  */
-
-    //cropmodified
+  ///@{**********Crop region of interest****
+    //box size
     Eigen::Vector4f minPoint; 
-    minPoint[0]=0.4;  
-    minPoint[1]=-0.2; 
-    minPoint[2]=0.6;  
+    minPoint[0]=0.4;  // define minimum point x 
+    minPoint[1]=-0.25; // define minimum point y
+    minPoint[2]=0.58;  // define minimum point z
     Eigen::Vector4f maxPoint; 
-    maxPoint[0]=1.3;  
-    maxPoint[1]=0.2;  
-    maxPoint[2]=1.0;  
-
+    maxPoint[0]=1.7;  // define max point x 
+    maxPoint[1]=0.25;  // define max point y
+    maxPoint[2]=0.9;  // define max point z
 
 
     // Define translation and rotation ( this is optional) 
-
     Eigen::Vector3f boxTranslatation; 
     boxTranslatation[0]=0.0;   
     boxTranslatation[1]=0.0;   
     boxTranslatation[2]=0.0;   
     // this moves your cube from (0,0,0)//minPoint to (1,2,3)  // maxPoint is now(6,8,10) 
-
 
     Eigen::Vector3f boxRotation; 
     boxRotation[0]= -0.3491;  // rotation around x-axis 
@@ -177,18 +171,18 @@ cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
 
     pcl::CropBox<pcl::PointXYZ> cropFilter; 
     cropFilter.setInputCloud (downsampled_XYZ); 
-    
     cropFilter.setMin(minPoint); 
     cropFilter.setMax(maxPoint); 
     // cropFilter.setTranslation(boxTranslatation); 
     //cropFilter.setRotation(boxRotation); 
-    
     cropFilter.filter (*downsampled_XYZ);
 
+    //export cropped cloud
     //if (!downsampled_XYZ->points.empty ())
     //{writer.write ("crop.pcd", *downsampled_XYZ, false);}
-    #if 1
+
     //publish cropped pointcloud
+    #if 1
     sensor_msgs::PointCloud2::Ptr output_cropped (new sensor_msgs::PointCloud2);
     pcl::toROSMsg (*downsampled_XYZ, *output_cropped);
     output_cropped->header.frame_id = target_frame;
@@ -201,7 +195,7 @@ cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
     
   ///@}
 
-  ///@{   Clustering
+  ///@{**********Clustering****************
     //Create the SACSegmentation object and set the model and method type
     pcl::ModelCoefficients::Ptr coefficients (new pcl::ModelCoefficients ());
     pcl::PointIndices::Ptr inliers (new pcl::PointIndices ());
@@ -213,8 +207,9 @@ cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
     seg.setModelType (pcl::SACMODEL_PLANE);
     seg.setMethodType (pcl::SAC_RANSAC);//For more info: wikipedia.org/wiki/RANSAC
     seg.setMaxIterations (100);
-    //modified
-    seg.setDistanceThreshold (0.02);//How close a point must be to the model to considered an inlier
+
+    //planemodified
+    seg.setDistanceThreshold (0.04);//How close a point must be to the model to considered an inlier
     //seg.setDistanceThreshold (0.02);
 
     int i = 0, nr_points = (int) downsampled_XYZ->points.size ();
@@ -259,11 +254,11 @@ cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
         i++;
     }
 
-    #if 0
+    #if 1
         //publish plane pointcloud
         sensor_msgs::PointCloud2::Ptr output_plane (new sensor_msgs::PointCloud2);
         pcl::toROSMsg (*cloud_plane, *output_plane);
-        output_plane->header.frame_id = input->header.frame_id;
+        output_plane->header.frame_id = target_frame;
         g_pub_plane_cloud.publish(output_plane);
     #endif
 
@@ -423,15 +418,22 @@ cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
         pcl::compute3DCentroid(*cloud_cylinder, centroid);
 
         // override
-        centroid[2] = 0.75;
-        centroids.push_back(centroid);
+        // centroid[2] = 0.75;
+         centroids.push_back(centroid);
       
         ROS_INFO("Centroid x: %f  y: %f  z: %f\n", centroid[0], centroid[1], centroid[2]);
+
+        //save data to txt
+        t=ros::Time::now()-start;
+        outfile.open("/home/chenxiaoyu/Plot/data.txt", ios::binary | ios::app | ios::in | ios::out);
+        outfile<<centroid[0]<<" "<<centroid[1]<<" "<< centroid[2]<<" "<< t <<"\n";
+        outfile.close();
+
     ///@}
     
     ///@{   Cylinder ids
         double min_dist = 1000000;
-        double thresh = 0.1;
+        double thresh = 0.2;
         int centroid_id;
 
         for (size_t cdx = 0; cdx < g_last_centroids.size(); ++cdx) {
@@ -479,15 +481,35 @@ cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
         marker.scale.x = 0.05;
         marker.scale.y = 0.05;
         marker.scale.z = 0.15;
-        if (centroid_id == 1) {
+        if (centroid_id == 0) {
             marker.color.r = 1.0f;
             marker.color.g = 0.0f;
             marker.color.b = 0.0f;
         }
-        else if (centroid_id == 0) {
+        else if (centroid_id == 1) {
             marker.color.r = 0.0f;
             marker.color.g = 0.0f;
             marker.color.b = 1.0f;          
+        }
+        else if (centroid_id == 2) {
+            marker.color.r = 0.0f;
+            marker.color.g = 1.0f;
+            marker.color.b = 0.0f;          
+        }
+        else if (centroid_id == 3) {
+            marker.color.r = 0.5f;
+            marker.color.g = 0.5f;
+            marker.color.b = 0.0f;          
+        }
+        else if (centroid_id == 4) {
+            marker.color.r = 0.5f;
+            marker.color.g = 0.0f;
+            marker.color.b = 0.5f;          
+        }
+        else if (centroid_id == 5) {
+            marker.color.r = 0.0f;
+            marker.color.g = 0.5f;
+            marker.color.b = 0.5f;          
         }
         else{
             marker.color.r = 0.0f;
@@ -541,23 +563,24 @@ cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
 int
 main (int argc, char** argv)
 {
+    // Initialize ROS
     ros::init (argc, argv, "cluster_extraction");
     ros::NodeHandle nh;
-    
-    g_pub_cyl_cloud = nh.advertise<sensor_msgs::PointCloud2> ("cyl_cloud", 100);
-    g_pub_cropped_cloud = nh.advertise<sensor_msgs::PointCloud2> ("cropped_cloud", 100);
-    //g_pub_plane_cloud = nh.advertise<sensor_msgs::PointCloud2> ("plane_cloud", 100);
-    g_pub_cyl_markers = nh.advertise<visualization_msgs::MarkerArray>(
-            "visualization_markers", 100);
-    g_pub_pose_markers = nh.advertise<ar_track_alvar_msgs::AlvarMarkers> ("ar_pose_marker", 100);
-    // Initialize ROS
+    start = ros::Time::now();
+    // Clear data
+    outfile.open("/home/chenxiaoyu/Plot/data.txt", ios::trunc);
+    outfile.close();
 
     // Create a ROS subscriber for the input point cloud
     ros::Subscriber sub = nh.subscribe ("/head_camera/depth_registered/points", 1, cloud_cb);
     
-
     // Create a ROS publisher for the output point cloud
-    // pub = nh.advertise<sensor_msgs::PointCloud2> ("/pcl_tut/object_cluster", 1);
+    g_pub_cyl_cloud = nh.advertise<sensor_msgs::PointCloud2> ("cyl_cloud", 100);
+    g_pub_cropped_cloud = nh.advertise<sensor_msgs::PointCloud2> ("cropped_cloud", 100);
+    g_pub_plane_cloud = nh.advertise<sensor_msgs::PointCloud2> ("plane_cloud", 100);
+    g_pub_cyl_markers = nh.advertise<visualization_msgs::MarkerArray>(
+            "visualization_markers", 100);
+    g_pub_pose_markers = nh.advertise<ar_track_alvar_msgs::AlvarMarkers> ("ar_pose_marker", 100);
 
     // Spin
     ros::spin ();
