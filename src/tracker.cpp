@@ -5,7 +5,7 @@
 #include <fstream>
 #include <string>
 #include <vector>
-using namespace std;
+
 // PCL specific includes
 #include <pcl/common/centroid.h>
 #include <pcl/filters/crop_box.h>
@@ -23,23 +23,18 @@ using namespace std;
 #include <pcl/segmentation/extract_clusters.h>
 #include <pcl_ros/transforms.h>
 #include <boost/lexical_cast.hpp>
-
-// #include <sensor_msgs/PointCloud2.h>
-// #include <sensor_msgs/PointCloud.h>
 #include <sensor_msgs/point_cloud_conversion.h>
-
 #include <ar_track_alvar_msgs/AlvarMarker.h>
 #include <ar_track_alvar_msgs/AlvarMarkers.h>
-
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/point_cloud.h>
 
 // cylinder fitting
-
 #include <tf/transform_listener.h>
 #include "tf/transform_datatypes.h"
 #include <visualization_msgs/MarkerArray.h>
 
+using namespace std;
 // ros::Publisher pub;
 std::vector<ros::Publisher> g_pub_vec;
 ros::Publisher g_pub_cyl_cloud;
@@ -56,6 +51,7 @@ pcl::PCDWriter writer;
 ofstream outfile;
 ros::Time start;
 ros::Duration t;
+int start_record=0;// Flag of starting recording data
 
 tf::Transform get_tf_from_stamped_tf(tf::StampedTransform sTf) 
 {
@@ -89,7 +85,6 @@ cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
     // std::cerr << "PointCloud before filtering: " << cloud->width * cloud->height
     //         << " data points." << std::endl;
     // Convert to PCL data type
-    std::cerr << "input frame ID: " << input->header.frame_id << std::endl;
     pcl_conversions::toPCL(*input, *cloud);
     
     // Perform the actual filtering
@@ -145,11 +140,11 @@ cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
   ///@{**********Crop region of interest****
     //box size
     Eigen::Vector4f minPoint; 
-    minPoint[0]=0.4;  // define minimum point x 
+    minPoint[0]=0.3;  // define minimum point x 
     minPoint[1]=-0.25; // define minimum point y
-    minPoint[2]=0.58;  // define minimum point z
+    minPoint[2]=0.6;  // define minimum point z
     Eigen::Vector4f maxPoint; 
-    maxPoint[0]=1.7;  // define max point x 
+    maxPoint[0]=1.5;  // define max point x 
     maxPoint[1]=0.25;  // define max point y
     maxPoint[2]=0.9;  // define max point z
 
@@ -241,8 +236,7 @@ cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
         extract.filter (*cloud_plane);
 
         // std::cerr << "PointCloud representing the planar component: " 
-        //         << output_p->width * output_p->height << " data points." << std::endl;
-
+        //         << cloud_plane->width * cloud_plane->height << " data points." << std::endl;
         // std::stringstream ss;
         // ss << "table_scene_lms400_plane_" << i << ".pcd";
         // writer.write<pcl::PointXYZ> (ss.str (), *cloud_p, false);
@@ -314,7 +308,7 @@ cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
     ROS_INFO("Num of clusters: %zu", cloud_clusters.size());
   ///@}
 
-  ///@{   Cylinder
+  ///@{**********Cylinder******************
     std::vector<Eigen::Vector4f> centroids;
     std::vector<std::pair<Eigen::Vector4f, int> > current_centroid_ids;
     visualization_msgs::MarkerArray ma;
@@ -359,7 +353,7 @@ cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
         seg2.setMaxIterations (10000);
         //seg2.setDistanceThreshold (0.05);
         seg2.setDistanceThreshold (0.05);//modified
-        seg2.setRadiusLimits (0.02, 0.2);//modified
+        seg2.setRadiusLimits (0.02, 0.08);//modified
         seg2.setInputCloud (cloud_filtered2);
         seg2.setInputNormals (cloud_normals2);
       
@@ -389,8 +383,6 @@ cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
         #if 1
         // publish cylinder inlier cloud
         pcl::toROSMsg (*cloud_cylinder, *output_cyl);
-
-        //output_cyl->header.frame_id = input->header.frame_id;
         output_cyl->header.frame_id = target_frame;
         g_pub_cyl_cloud.publish(output_cyl);
         #endif
@@ -413,25 +405,27 @@ cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
         // }
     ///@}
 
-    ///@{   Centroids
+    ///@{   Cylinder Centroids
         Eigen::Vector4f centroid;
         pcl::compute3DCentroid(*cloud_cylinder, centroid);
-
-        // override
-        // centroid[2] = 0.75;
-         centroids.push_back(centroid);
+        centroids.push_back(centroid);
       
         ROS_INFO("Centroid x: %f  y: %f  z: %f\n", centroid[0], centroid[1], centroid[2]);
 
-        //save data to txt
-        t=ros::Time::now()-start;
-        outfile.open("/home/chenxiaoyu/Plot/data.txt", ios::binary | ios::app | ios::in | ios::out);
-        outfile<<centroid[0]<<" "<<centroid[1]<<" "<< centroid[2]<<" "<< t <<"\n";
-        outfile.close();
+        if (start_record==0){start = ros::Time::now();}// Record the time before starting recording
+        if (centroid[0]<1.4){start_record=1;}// Start recording
+        
+        if (start_record==1)// Save data to .txt file
+        {
+            t=ros::Time::now()-start;
+            outfile.open("/home/chenxiaoyu/Plot/data.txt", ios::binary | ios::app | ios::in | ios::out);
+            outfile<<centroid[0]<<" "<<centroid[1]<<" "<< centroid[2]<<" "<< t <<"\n";
+            outfile.close();
+        }
 
     ///@}
     
-    ///@{   Cylinder ids
+    ///@{   Cylinder IDs
         double min_dist = 1000000;
         double thresh = 0.2;
         int centroid_id;
@@ -467,6 +461,7 @@ cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
         current_centroid_ids.push_back(std::pair<Eigen::Vector4f, int> (centroid, centroid_id));
     ///@}
 
+    ///@{   Cylinder Markers
         visualization_msgs::Marker marker;
         marker.header.stamp = ros::Time::now();
         marker.header.frame_id = target_frame;
@@ -519,8 +514,9 @@ cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
         marker.color.a = 1.0f;
         marker.lifetime = ros::Duration(0.2);
         ma.markers.push_back(marker);
+    ///@}
     }
-
+    
 
 
     // update centroids
@@ -534,7 +530,7 @@ cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
     g_pub_cyl_markers.publish(ma);
   ///@}
 
-  ///@{   Alvar pose markers
+  ///@{**********Alvar pose markers********
     for (int i = 0; i < current_centroid_ids.size(); ++i) {
         ar_track_alvar_msgs::AlvarMarker pose_marker;
         pose_marker.id = current_centroid_ids[i].second;
@@ -557,16 +553,16 @@ cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
   
     ROS_INFO("Cycle time %f", d.toSec());
     printf("--------------------------------------------------------------\n\n");
-    // getchar();
     return;
 }
-int
-main (int argc, char** argv)
+
+
+int main (int argc, char** argv)
 {
     // Initialize ROS
     ros::init (argc, argv, "cluster_extraction");
     ros::NodeHandle nh;
-    start = ros::Time::now();
+   
     // Clear data
     outfile.open("/home/chenxiaoyu/Plot/data.txt", ios::trunc);
     outfile.close();
