@@ -64,51 +64,53 @@ tf::Transform get_tf_from_stamped_tf(tf::StampedTransform sTf)
    return tf;
 }
 
-// 一维滤波器信息结构体
-typedef  struct{
-	double filterValue;  // The filter value at k-1 time k-1时刻的滤波值，即是k-1时刻的值 
-	double kalmanGain;   // Kalman增益
-	double A;   // x(n)=A*x(n-1)+u(n),u(n)~N(0,Q)
-	double H;   // z(n)=H*x(n)+w(n),w(n)~N(0,R)
-    double P;   // Estimate error covariance 估计误差协方差
-	double Q;   // Predicted noise variance 预测噪声方差 由系统外部测定给定
-	double R;   // Measured noise variance (obtained by experiment data) 测量噪声偏差，(系统搭建好以后，通过测量统计实验获得)
-	
-}  KalmanInfo;
-/*
-* @brief Init_KalmanInfo   Initial value 初始化滤波器的初始值
-* @param info  Filter pointer 滤波器指针
-*/
-void Init_KalmanInfo(KalmanInfo* info, double Q, double R,double filtervalue)
-{
-	info->A = 1;  // Scalar Kalman 标量卡尔曼
-	info->H = 1;  
-	info->P = 2; 
-	info->Q = Q;    
-	info->R = R;    
-	info->filterValue = filtervalue;// Initial value
-}
-double KalmanFilter(KalmanInfo* kalmanInfo, double lastMeasurement)
-{
-	//Predict the value of the next moment
-	double predictValue = kalmanInfo->A* kalmanInfo->filterValue;   //x的先验估计由上一个时间点的后验估计值和输入信息给出，此处需要根据基站高度做一个修改
-	
-	//Finding covariance
-	kalmanInfo->P = kalmanInfo->A*kalmanInfo->A*kalmanInfo->P + kalmanInfo->Q;  //计算先验均方差 p(n|n-1)=A^2*p(n-1|n-1)+q
-	double preValue = kalmanInfo->filterValue;  //Record the value of the last actual coordinate 记录上次实际坐标的值
- 
-	// compute kalman gain计算kalman增益
-	kalmanInfo->kalmanGain = kalmanInfo->P*kalmanInfo->H / (kalmanInfo->P*kalmanInfo->H*kalmanInfo->H + kalmanInfo->R);  //Kg(k)= P(k|k-1) H’ / (H P(k|k-1) H’ + R)
-	// correct results, compute filter value 修正结果，即计算滤波值
-	kalmanInfo->filterValue = predictValue + (lastMeasurement - predictValue)*kalmanInfo->kalmanGain;  //利用残余的信息改善对x(t)的估计，给出后验估计，这个值也就是输出  X(k|k)= X(k|k-1)+Kg(k) (Z(k)-H X(k|k-1))
-	//update estimation 更新后验估计
-	kalmanInfo->P = (1 - kalmanInfo->kalmanGain*kalmanInfo->H)*kalmanInfo->P;//计算后验均方差  P[n|n]=(1-K[n]*H)*P[n|n-1]
- 
-	return  kalmanInfo->filterValue;
-}
-KalmanInfo* info_x=new KalmanInfo;
-KalmanInfo* info_y=new KalmanInfo;
-KalmanInfo* info_z=new KalmanInfo;
+///@{**********Kalman filter structure***********
+    typedef  struct{
+        double filterValue;  // The filter value at k-1 time k-1时刻的滤波值，即是k-1时刻的值 
+        double kalmanGain;   // Kalman增益
+        double A;   // x(n)=A*x(n-1)+u(n),u(n)~N(0,Q)
+        double H;   // z(n)=H*x(n)+w(n),w(n)~N(0,R)
+        double P;   // Estimate error covariance 估计误差协方差
+        double Q;   // Predicted noise covariance 预测噪声方差 由系统外部测定给定
+        double R;   // Measured noise covariance (obtained by experiment data) 测量噪声偏差，(系统搭建好以后，通过测量统计实验获得)
+        
+    }  KalmanInfo;
+    /*
+    * @brief Init_KalmanInfo   Initial value 初始化滤波器的初始值
+    * @param info  Filter pointer 滤波器指针
+    */
+    void Init_KalmanInfo(KalmanInfo* info, double Q, double R,double filtervalue)
+    {
+        info->A = 1;  // Scalar Kalman 标量卡尔曼
+        info->H = 1;  
+        info->P = 2; 
+        info->Q = Q;    
+        info->R = R;    
+        info->filterValue = filtervalue;// Initial value
+    }
+    double KalmanFilter(KalmanInfo* kalmanInfo, double lastMeasurement)
+    {
+        //Predict the value of the next moment
+        double predictValue = kalmanInfo->A* kalmanInfo->filterValue;   //x的先验估计由上一个时间点的后验估计值和输入信息给出，此处需要根据基站高度做一个修改
+        
+        //Finding covariance
+        kalmanInfo->P = kalmanInfo->A*kalmanInfo->A*kalmanInfo->P + kalmanInfo->Q;  //计算先验均方差 p(n|n-1)=A^2*p(n-1|n-1)+q
+        double preValue = kalmanInfo->filterValue;  //Record the value of the last actual coordinate 记录上次实际坐标的值
+    
+        // compute kalman gain计算kalman增益
+        kalmanInfo->kalmanGain = kalmanInfo->P*kalmanInfo->H / (kalmanInfo->P*kalmanInfo->H*kalmanInfo->H + kalmanInfo->R);  //Kg(k)= P(k|k-1) H’ / (H P(k|k-1) H’ + R)
+        // correct results, compute filter value 修正结果，即计算滤波值
+        kalmanInfo->filterValue = predictValue + (lastMeasurement - predictValue)*kalmanInfo->kalmanGain;  //利用残余的信息改善对x(t)的估计，给出后验估计，这个值也就是输出  X(k|k)= X(k|k-1)+Kg(k) (Z(k)-H X(k|k-1))
+        //update estimation 更新后验估计
+        kalmanInfo->P = (1 - kalmanInfo->kalmanGain*kalmanInfo->H)*kalmanInfo->P;//计算后验均方差  P[n|n]=(1-K[n]*H)*P[n|n-1]
+    
+        return  kalmanInfo->filterValue;
+    }
+    KalmanInfo* info_x=new KalmanInfo;
+    KalmanInfo* info_y=new KalmanInfo;
+    KalmanInfo* info_z=new KalmanInfo;
+///@}
+
 
 void 
 cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
@@ -459,17 +461,16 @@ cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
         
         ROS_INFO("Centroid x: %f  y: %f  z: %f\n", centroid[0], centroid[1], centroid[2]);
 
-        
-        filtered_x=KalmanFilter(info_x,centroid[0]);
-        filtered_y=KalmanFilter(info_y,centroid[1]);
-        filtered_z=KalmanFilter(info_z,centroid[2]);
-
         if (start_record==0){start = ros::Time::now();}// Record the time before starting recording
         if (centroid[0]<1.25){start_record=1;}// Start recording
         
         if (start_record==1)// Save data to .txt file
         {
             t=ros::Time::now()-start;
+            //Compute filter value
+            filtered_x=KalmanFilter(info_x,centroid[0]);
+            filtered_y=KalmanFilter(info_y,centroid[1]);
+            filtered_z=KalmanFilter(info_z,centroid[2]);
             outfile.open("/home/chenxiaoyu/Plot/data.txt", ios::binary | ios::app | ios::in | ios::out);
             outfile<<centroid[0]<<" "<<centroid[1]<<" "<< centroid[2]<<" "<< t <<" "<<filtered_x<<" "<<filtered_y<<" "<<filtered_z<<"\n";
             outfile.close();
@@ -619,8 +620,8 @@ int main (int argc, char** argv)
     outfile.open("/home/chenxiaoyu/Plot/data.txt", ios::trunc);
     outfile.close();
     
-    Init_KalmanInfo(info_x, 0.005, 0.0284,1.4);
-    Init_KalmanInfo(info_y, 9e-06, 1.8566e-04,-0.15);
+    Init_KalmanInfo(info_x, 0.005, 0.0284,1.28);
+    Init_KalmanInfo(info_y, 9e-06, 1.8566e-04,-0.158);
     Init_KalmanInfo(info_z, 7.6089e-07, 3.6089e-05,0.71);
     
 
