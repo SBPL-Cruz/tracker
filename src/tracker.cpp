@@ -42,6 +42,8 @@ ros::Publisher  g_pub_cyl_markers;
 ros::Publisher  g_pub_pose_markers;
 ros::Publisher g_pub_cropped_cloud;
 ros::Publisher g_pub_plane_cloud;
+ros::Publisher g_pub_pose;
+ros::Publisher g_pub_pose_filtered;
 std::vector<std::pair<Eigen::Vector4f, int> > g_last_centroids;
 tf::StampedTransform g_transform;
 bool g_has_transform = false;
@@ -69,6 +71,7 @@ tf::Transform get_tf_from_stamped_tf(tf::StampedTransform sTf)
         double filterValue;  // The filter value at k-1 time k-1时刻的滤波值，即是k-1时刻的值 
         double kalmanGain;   // Kalman增益
         double A;   // x(n)=A*x(n-1)+u(n),u(n)~N(0,Q)
+        double B;
         double H;   // z(n)=H*x(n)+w(n),w(n)~N(0,R)
         double P;   // Estimate error covariance 估计误差协方差
         double Q;   // Predicted noise covariance 预测噪声方差 由系统外部测定给定
@@ -81,17 +84,21 @@ tf::Transform get_tf_from_stamped_tf(tf::StampedTransform sTf)
     */
     void Init_KalmanInfo(KalmanInfo* info, double Q, double R,double filtervalue)
     {
-        info->A = 1;  // Scalar Kalman 标量卡尔曼
+        info->A = 1; 
+        info->B = 0; 
         info->H = 1;  
         info->P = 2; 
         info->Q = Q;    
         info->R = R;    
         info->filterValue = filtervalue;// Initial value
     }
-    double KalmanFilter(KalmanInfo* kalmanInfo, double lastMeasurement)
+    double KalmanFilter(KalmanInfo* kalmanInfo, double lastMeasurement,double A,double B)
     {
+        kalmanInfo->A=A;
+        kalmanInfo->B=B;
+
         //Predict the value of the next moment
-        double predictValue = kalmanInfo->A* kalmanInfo->filterValue;   //x的先验估计由上一个时间点的后验估计值和输入信息给出，此处需要根据基站高度做一个修改
+        double predictValue = kalmanInfo->A* kalmanInfo->filterValue +kalmanInfo->B ;   //x的先验估计由上一个时间点的后验估计值和输入信息给出，此处需要根据基站高度做一个修改
         
         //Finding covariance
         kalmanInfo->P = kalmanInfo->A*kalmanInfo->A*kalmanInfo->P + kalmanInfo->Q;  //计算先验均方差 p(n|n-1)=A^2*p(n-1|n-1)+q
@@ -189,13 +196,22 @@ cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
   ///@{**********Crop region of interest****
     //box size
     Eigen::Vector4f minPoint; 
+    minPoint[0]=0.1;  // define minimum point x 
+    minPoint[1]=0.4; // define minimum point y
+    minPoint[2]=0.66;  // define minimum point z
+    Eigen::Vector4f maxPoint; 
+    maxPoint[0]=0.42;  // define max point x 
+    maxPoint[1]=1.6;  // define max point y
+    maxPoint[2]=0.9;  // define max point z
+    
+    /* Eigen::Vector4f minPoint; 
     minPoint[0]=0.2;  // define minimum point x 
-    minPoint[1]=-0.4; // define minimum point y
+    minPoint[1]=-0.2; // define minimum point y
     minPoint[2]=0.6;  // define minimum point z
     Eigen::Vector4f maxPoint; 
-    maxPoint[0]=1.5;  // define max point x 
-    maxPoint[1]=0.1;  // define max point y
-    maxPoint[2]=0.9;  // define max point z
+    maxPoint[0]=1.8;  // define max point x 
+    maxPoint[1]=0.2;  // define max point y
+    maxPoint[2]=0.9;  // define max point z*/
 
 
     // Define translation and rotation ( this is optional) 
@@ -253,7 +269,7 @@ cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
     seg.setMaxIterations (100);
 
     //planemodified
-    seg.setDistanceThreshold (0.04);//How close a point must be to the model to considered an inlier
+    seg.setDistanceThreshold (0.05);//How close a point must be to the model to considered an inlier
     //seg.setDistanceThreshold (0.02);
 
     int i = 0, nr_points = (int) downsampled_XYZ->points.size ();
@@ -462,18 +478,35 @@ cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
         ROS_INFO("Centroid x: %f  y: %f  z: %f\n", centroid[0], centroid[1], centroid[2]);
 
         if (start_record==0){start = ros::Time::now();}// Record the time before starting recording
-        if (centroid[0]<1.25){start_record=1;}// Start recording
+        if ((centroid[1]<1.25) &&(centroid[1]>0.4)){start_record=1;}// Start recording
         
         if (start_record==1)// Save data to .txt file
         {
             t=ros::Time::now()-start;
             //Compute filter value
-            filtered_x=KalmanFilter(info_x,centroid[0]);
-            filtered_y=KalmanFilter(info_y,centroid[1]);
-            filtered_z=KalmanFilter(info_z,centroid[2]);
-            outfile.open("/home/chenxiaoyu/Plot/data.txt", ios::binary | ios::app | ios::in | ios::out);
-            outfile<<centroid[0]<<" "<<centroid[1]<<" "<< centroid[2]<<" "<< t <<" "<<filtered_x<<" "<<filtered_y<<" "<<filtered_z<<"\n";
-            outfile.close();
+            filtered_x=KalmanFilter(info_x,centroid[0], 1, 0.00365*d.toSec());
+            filtered_y=KalmanFilter(info_y,centroid[1], 1, -0.24*d.toSec());
+            filtered_z=KalmanFilter(info_z,centroid[2], 1, 0);
+            //outfile.open("/home/chenxiaoyu/Data2/data.txt", ios::binary | ios::app | ios::in | ios::out);
+            //outfile<<centroid[0]<<" "<<centroid[1]<<" "<< centroid[2]<<" "<< t.toSec() <<" "<<filtered_x<<" "<<filtered_y<<" "<<filtered_z<<"\n";
+            //outfile.close();
+            ROS_INFO("Filtered Centroid x: %f  y: %f  z: %f\n", filtered_x, filtered_y, filtered_z);
+            geometry_msgs::PoseStamped pos;
+            pos.header.frame_id=target_frame;
+            pos.header.stamp= ros::Time::now();
+            pos.pose.position.x=centroid[0];
+            pos.pose.position.y=centroid[1];
+            pos.pose.position.z=centroid[2];
+            pos.pose.orientation.w=1.0;
+            g_pub_pose.publish(pos);
+            geometry_msgs::PoseStamped pos_filtered;
+            pos_filtered.header.frame_id=target_frame;
+            pos_filtered.header.stamp= ros::Time::now();
+            pos_filtered.pose.position.x=filtered_x;
+            pos_filtered.pose.position.y=filtered_y;
+            pos_filtered.pose.position.z=filtered_z;
+            pos_filtered.pose.orientation.w=1.0;
+            g_pub_pose_filtered.publish(pos_filtered);
         }
 
     ///@}
@@ -617,15 +650,13 @@ int main (int argc, char** argv)
     ros::NodeHandle nh;
    
     // Clear data
-    outfile.open("/home/chenxiaoyu/Plot/data.txt", ios::trunc);
-    outfile.close();
+    //outfile.open("/home/chenxiaoyu/Data2/data.txt", ios::trunc);
+    //outfile.close();
     
-    Init_KalmanInfo(info_x, 0.005, 0.0284,1.28);
-    Init_KalmanInfo(info_y, 9e-06, 1.8566e-04,-0.158);
-    Init_KalmanInfo(info_z, 7.6089e-07, 3.6089e-05,0.71);
+    Init_KalmanInfo(info_x, 1e-04, 0.004, 0.269);
+    Init_KalmanInfo(info_y, 1e-04, 0.006, 1.25);
+    Init_KalmanInfo(info_z, 1e-05, 0.002, 0.8);
     
-
-
     // Create a ROS subscriber for the input point cloud
     ros::Subscriber sub = nh.subscribe ("/head_camera/depth_registered/points", 1, cloud_cb);
     
@@ -636,6 +667,8 @@ int main (int argc, char** argv)
     g_pub_cyl_markers = nh.advertise<visualization_msgs::MarkerArray>(
             "visualization_markers", 100);
     g_pub_pose_markers = nh.advertise<ar_track_alvar_msgs::AlvarMarkers> ("ar_pose_marker", 100);
+    g_pub_pose=nh.advertise<geometry_msgs::PoseStamped>("pose",100);
+    g_pub_pose_filtered=nh.advertise<geometry_msgs::PoseStamped>("pose_filtered",100);
 
     // Spin
     ros::spin ();
