@@ -13,6 +13,6 @@ $ rosrun catkin_ws tracker
 "cyl_cloud": Cylinder fitted point clouds.  
 "cropped_cloud": Cropped point clouds.  
 "plane_cloud": Extracted plane point clouds.  
-**"ar_pose_marker": Cylinder ID and coordinates.**
+**"ar_pose_marker": Cylinder ID and coordinates.**  
 "pose": Coordinates.  
 "pose_filtered": Filtered coordinates.  
