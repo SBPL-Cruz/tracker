@@ -473,24 +473,30 @@ cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
     ///@{   Cylinder Centroids
         Eigen::Vector4f centroid;
         pcl::compute3DCentroid(*cloud_cylinder, centroid);
-        centroids.push_back(centroid);
+        
         
         ROS_INFO("Centroid x: %f  y: %f  z: %f\n", centroid[0], centroid[1], centroid[2]);
 
         if (start_record==0){start = ros::Time::now();}// Record the time before starting recording
-        if ((centroid[1]<1.25) &&(centroid[1]>0.4)){start_record=1;}// Start recording
+        if ((centroid[1]<1.35) &&(centroid[1]>0.3)){start_record=1;}// Start recording
         
         if (start_record==1)// Save data to .txt file
         {
             t=ros::Time::now()-start;
             //Compute filter value
-            filtered_x=KalmanFilter(info_x,centroid[0], 1, 0.00365*d.toSec());
-            filtered_y=KalmanFilter(info_y,centroid[1], 1, -0.24*d.toSec());
+            filtered_x=KalmanFilter(info_x,centroid[0], 1, -0.0065*d.toSec()); 
+            filtered_y=KalmanFilter(info_y,centroid[1], 1, -0.25*d.toSec());
             filtered_z=KalmanFilter(info_z,centroid[2], 1, 0);
-            //outfile.open("/home/chenxiaoyu/Data2/data.txt", ios::binary | ios::app | ios::in | ios::out);
-            //outfile<<centroid[0]<<" "<<centroid[1]<<" "<< centroid[2]<<" "<< t.toSec() <<" "<<filtered_x<<" "<<filtered_y<<" "<<filtered_z<<"\n";
-            //outfile.close();
+            outfile.open("/home/chenxiaoyu/Data2/data.txt", ios::binary | ios::app | ios::in | ios::out);
+            outfile<<centroid[0]<<" "<<centroid[1]<<" "<< centroid[2]<<" "<< t.toSec() 
+                <<" "<<filtered_x<<" "<<filtered_y<<" "<<filtered_z<<"\n";
+            outfile.close();
             ROS_INFO("Filtered Centroid x: %f  y: %f  z: %f\n", filtered_x, filtered_y, filtered_z);
+            #if 1
+            centroid[0]=filtered_x;
+            centroid[1]=filtered_y;
+            centroid[2]=filtered_z;
+            #endif
             geometry_msgs::PoseStamped pos;
             pos.header.frame_id=target_frame;
             pos.header.stamp= ros::Time::now();
@@ -508,12 +514,12 @@ cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
             pos_filtered.pose.orientation.w=1.0;
             g_pub_pose_filtered.publish(pos_filtered);
         }
-
+        centroids.push_back(centroid);
     ///@}
     
     ///@{   Cylinder IDs
         double min_dist = 1000000;
-        double thresh = 0.2;
+        double thresh = 0.4;
         int centroid_id;
 
         for (size_t cdx = 0; cdx < g_last_centroids.size(); ++cdx) {
@@ -650,11 +656,11 @@ int main (int argc, char** argv)
     ros::NodeHandle nh;
    
     // Clear data
-    //outfile.open("/home/chenxiaoyu/Data2/data.txt", ios::trunc);
-    //outfile.close();
+    outfile.open("/home/chenxiaoyu/Data2/data.txt", ios::trunc);
+    outfile.close();
     
-    Init_KalmanInfo(info_x, 1e-04, 0.004, 0.269);
-    Init_KalmanInfo(info_y, 1e-04, 0.006, 1.25);
+    Init_KalmanInfo(info_x, 1e-03, 0.004, 0.269);
+    Init_KalmanInfo(info_y, 1e-03, 0.006, 1.25);
     Init_KalmanInfo(info_z, 1e-05, 0.002, 0.8);
     
     // Create a ROS subscriber for the input point cloud
