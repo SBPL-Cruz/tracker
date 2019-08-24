@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<launch>
+  <node pkg="object_track" type="tracker" name="object_tracker" output="screen" respawn="false"/>
+    <remap from="target_frame" to="base_footprint"/>
+    <remap from="input" to="/head_camera/depth_registered/points"/>
+
+
+
+  <!-- Run a python script to the send a service call to gazebo_ros to spawn a URDF robot -->
+  <!-- <param name="robot_description" command="cat '$(find urdf)urdf/walker.urdf'" />-->
+
+  </node>
+
+</launch>

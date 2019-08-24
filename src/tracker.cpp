@@ -58,7 +58,7 @@ double filtered_x;
 double filtered_y;
 double filtered_z;
 
-tf::Transform get_tf_from_stamped_tf(tf::StampedTransform sTf) 
+tf::Transform get_tf_from_stamped_tf(tf::StampedTransform sTf)
 {
    tf::Transform tf(sTf.getBasis(),sTf.getOrigin()); //construct a transform using elements of sTf
    //getBasis():Return the basis matrix for the rotation
@@ -68,7 +68,7 @@ tf::Transform get_tf_from_stamped_tf(tf::StampedTransform sTf)
 
 ///@{**********Kalman filter structure***********
     typedef  struct{
-        double filterValue;  // The filter value at k-1 time k-1时刻的滤波值，即是k-1时刻的值 
+        double filterValue;  // The filter value at k-1 time k-1时刻的滤波值，即是k-1时刻的值
         double kalmanGain;   // Kalman增益
         double A;   // x(n)=A*x(n-1)+u(n),u(n)~N(0,Q)
         double B;
@@ -76,7 +76,7 @@ tf::Transform get_tf_from_stamped_tf(tf::StampedTransform sTf)
         double P;   // Estimate error covariance 估计误差协方差
         double Q;   // Predicted noise covariance 预测噪声方差 由系统外部测定给定
         double R;   // Measured noise covariance (obtained by experiment data) 测量噪声偏差，(系统搭建好以后，通过测量统计实验获得)
-        
+
     }  KalmanInfo;
     /*
     * @brief Init_KalmanInfo   Initial value 初始化滤波器的初始值
@@ -84,12 +84,12 @@ tf::Transform get_tf_from_stamped_tf(tf::StampedTransform sTf)
     */
     void Init_KalmanInfo(KalmanInfo* info, double Q, double R,double filtervalue)
     {
-        info->A = 1; 
-        info->B = 0; 
-        info->H = 1;  
-        info->P = 2; 
-        info->Q = Q;    
-        info->R = R;    
+        info->A = 1;
+        info->B = 0;
+        info->H = 1;
+        info->P = 2;
+        info->Q = Q;
+        info->R = R;
         info->filterValue = filtervalue;// Initial value
     }
     double KalmanFilter(KalmanInfo* kalmanInfo, double lastMeasurement,double A,double B)
@@ -99,18 +99,18 @@ tf::Transform get_tf_from_stamped_tf(tf::StampedTransform sTf)
 
         //Predict the value of the next moment
         double predictValue = kalmanInfo->A* kalmanInfo->filterValue +kalmanInfo->B ;   //x的先验估计由上一个时间点的后验估计值和输入信息给出，此处需要根据基站高度做一个修改
-        
+
         //Finding covariance
         kalmanInfo->P = kalmanInfo->A*kalmanInfo->A*kalmanInfo->P + kalmanInfo->Q;  //计算先验均方差 p(n|n-1)=A^2*p(n-1|n-1)+q
         double preValue = kalmanInfo->filterValue;  //Record the value of the last actual coordinate 记录上次实际坐标的值
-    
+
         // compute kalman gain计算kalman增益
         kalmanInfo->kalmanGain = kalmanInfo->P*kalmanInfo->H / (kalmanInfo->P*kalmanInfo->H*kalmanInfo->H + kalmanInfo->R);  //Kg(k)= P(k|k-1) H’ / (H P(k|k-1) H’ + R)
         // correct results, compute filter value 修正结果，即计算滤波值
         kalmanInfo->filterValue = predictValue + (lastMeasurement - predictValue)*kalmanInfo->kalmanGain;  //利用残余的信息改善对x(t)的估计，给出后验估计，这个值也就是输出  X(k|k)= X(k|k-1)+Kg(k) (Z(k)-H X(k|k-1))
         //update estimation 更新后验估计
         kalmanInfo->P = (1 - kalmanInfo->kalmanGain*kalmanInfo->H)*kalmanInfo->P;//计算后验均方差  P[n|n]=(1-K[n]*H)*P[n|n-1]
-    
+
         return  kalmanInfo->filterValue;
     }
     KalmanInfo* info_x=new KalmanInfo;
@@ -119,7 +119,7 @@ tf::Transform get_tf_from_stamped_tf(tf::StampedTransform sTf)
 ///@}
 
 
-void 
+void
 cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
 {
     ros::Time begin = ros::Time::now();
@@ -134,15 +134,15 @@ cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
 
 
     // Create the filtering object: downsample the dataset using a leaf size of 1cm
-    pcl::PCLPointCloud2* cloud = new pcl::PCLPointCloud2; 
+    pcl::PCLPointCloud2* cloud = new pcl::PCLPointCloud2;
     pcl::PCLPointCloud2ConstPtr cloudPtr(cloud);
     pcl::PCLPointCloud2 cloud_filtered;
-  
+
     // std::cerr << "PointCloud before filtering: " << cloud->width * cloud->height
     //         << " data points." << std::endl;
     // Convert to PCL data type
     pcl_conversions::toPCL(*input, *cloud);
-    
+
     // Perform the actual filtering
     pcl::VoxelGrid<pcl::PCLPointCloud2> sor;
 
@@ -166,12 +166,12 @@ cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
         //Block until a transform is possible or it times out
         listener.waitForTransform(target_frame, input->header.frame_id,
                                   ros::Time(0), ros::Duration(10.0));
-        //Get the transform between two frames by frame ID                       
+        //Get the transform between two frames by frame ID
         listener.lookupTransform( target_frame, input->header.frame_id, ros::Time(0), g_transform);
-    
+
         g_has_transform = true;
     }
-    
+
     pcl_ros::transformPointCloud(*downsampled_XYZ, transformed_cloud, get_tf_from_stamped_tf(g_transform));
     *downsampled_XYZ  = transformed_cloud;
     d = ros::Time::now() - begin;
@@ -182,59 +182,59 @@ cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
 
     //publish downsampled pointcloud
     #if 0
-    
+
     sensor_msgs::PointCloud2::Ptr output_cropped (new sensor_msgs::PointCloud2);
     pcl::toROSMsg (*downsampled_XYZ, *output_cropped);
     output_cropped->header.frame_id = target_frame;
     g_pub_cropped_cloud.publish(output_cropped);
     #endif
-    
+
 
     ROS_INFO("transformation at: %f", d.toSec());
   ///@}
 
   ///@{**********Crop region of interest****
     //box size
-    Eigen::Vector4f minPoint; 
-    minPoint[0]=0.1;  // define minimum point x 
+    Eigen::Vector4f minPoint;
+    minPoint[0]=0.1;  // define minimum point x
     minPoint[1]=0.4; // define minimum point y
     minPoint[2]=0.66;  // define minimum point z
-    Eigen::Vector4f maxPoint; 
-    maxPoint[0]=0.42;  // define max point x 
+    Eigen::Vector4f maxPoint;
+    maxPoint[0]=0.42;  // define max point x
     maxPoint[1]=1.6;  // define max point y
     maxPoint[2]=0.9;  // define max point z
-    
-    /* Eigen::Vector4f minPoint; 
-    minPoint[0]=0.2;  // define minimum point x 
+
+    /* Eigen::Vector4f minPoint;
+    minPoint[0]=0.2;  // define minimum point x
     minPoint[1]=-0.2; // define minimum point y
     minPoint[2]=0.6;  // define minimum point z
-    Eigen::Vector4f maxPoint; 
-    maxPoint[0]=1.8;  // define max point x 
+    Eigen::Vector4f maxPoint;
+    maxPoint[0]=1.8;  // define max point x
     maxPoint[1]=0.2;  // define max point y
     maxPoint[2]=0.9;  // define max point z*/
 
 
-    // Define translation and rotation ( this is optional) 
-    Eigen::Vector3f boxTranslatation; 
-    boxTranslatation[0]=0.0;   
-    boxTranslatation[1]=0.0;   
-    boxTranslatation[2]=0.0;   
-    // this moves your cube from (0,0,0)//minPoint to (1,2,3)  // maxPoint is now(6,8,10) 
+    // Define translation and rotation ( this is optional)
+    Eigen::Vector3f boxTranslatation;
+    boxTranslatation[0]=0.0;
+    boxTranslatation[1]=0.0;
+    boxTranslatation[2]=0.0;
+    // this moves your cube from (0,0,0)//minPoint to (1,2,3)  // maxPoint is now(6,8,10)
 
-    Eigen::Vector3f boxRotation; 
-    boxRotation[0]= -0.3491;  // rotation around x-axis 
-    boxRotation[1]=0;  // rotation around y-axis 
-    boxRotation[2]=0.0;  //in radians rotation around z-axis. this rotates your cube 45deg around z-axis. 
+    Eigen::Vector3f boxRotation;
+    boxRotation[0]= -0.3491;  // rotation around x-axis
+    boxRotation[1]=0;  // rotation around y-axis
+    boxRotation[2]=0.0;  //in radians rotation around z-axis. this rotates your cube 45deg around z-axis.
     // OR:
     // cropFilter.setTransform(boxTransform);
-    
 
-    pcl::CropBox<pcl::PointXYZ> cropFilter; 
-    cropFilter.setInputCloud (downsampled_XYZ); 
-    cropFilter.setMin(minPoint); 
-    cropFilter.setMax(maxPoint); 
-    // cropFilter.setTranslation(boxTranslatation); 
-    //cropFilter.setRotation(boxRotation); 
+
+    pcl::CropBox<pcl::PointXYZ> cropFilter;
+    cropFilter.setInputCloud (downsampled_XYZ);
+    cropFilter.setMin(minPoint);
+    cropFilter.setMax(maxPoint);
+    // cropFilter.setTranslation(boxTranslatation);
+    //cropFilter.setRotation(boxRotation);
     cropFilter.filter (*downsampled_XYZ);
 
     //export cropped cloud
@@ -252,7 +252,7 @@ cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
     std::cerr << "PointCloud after crop filtering: " << downsampled_XYZ->width * downsampled_XYZ->height << " data points." << std::endl;
     d = ros::Time::now() - begin;
     ROS_INFO("cropping at: %f", d.toSec());
-    
+
   ///@}
 
   ///@{**********Clustering****************
@@ -300,7 +300,7 @@ cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
         // Get the points associated with the planar surface
         extract.filter (*cloud_plane);
 
-        // std::cerr << "PointCloud representing the planar component: " 
+        // std::cerr << "PointCloud representing the planar component: "
         //         << cloud_plane->width * cloud_plane->height << " data points." << std::endl;
         // std::stringstream ss;
         // ss << "table_scene_lms400_plane_" << i << ".pcd";
@@ -324,8 +324,8 @@ cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
     // Creating the KdTree object for the search method of the extraction
     pcl::search::KdTree<pcl::PointXYZ>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZ>);
     tree->setInputCloud (downsampled_XYZ);
-    
-    
+
+
     std::vector<pcl::PointIndices> cluster_indices;
     pcl::EuclideanClusterExtraction<pcl::PointXYZ> ec;
     //ec.setClusterTolerance (0.02); // 2cm
@@ -358,7 +358,7 @@ cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
         cloud_cluster->is_dense = true;
 
         // std::cout << "PointCloud representing the Cluster: " << cloud_cluster->points.size () << " data points." << std::endl;
-        
+
         //Convert the pointcloud to be used in ROS
         sensor_msgs::PointCloud2::Ptr output (new sensor_msgs::PointCloud2);
         pcl::toROSMsg (*cloud_cluster, *output);
@@ -383,19 +383,19 @@ cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
     ///@{   Cylinder fitting
         pcl::PassThrough<pcl::PointXYZ> pass;
         pcl::NormalEstimation<pcl::PointXYZ, pcl::Normal> ne;
-        pcl::SACSegmentationFromNormals<pcl::PointXYZ, pcl::Normal> seg2; 
-        
+        pcl::SACSegmentationFromNormals<pcl::PointXYZ, pcl::Normal> seg2;
+
         pcl::ExtractIndices<pcl::PointXYZ> extract;
         pcl::search::KdTree<pcl::PointXYZ>::Ptr tree2 (new pcl::search::KdTree<pcl::PointXYZ> ());
-      
+
         // Datasets
         pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filtered2 (new pcl::PointCloud<pcl::PointXYZ>);
         pcl::PointCloud<pcl::Normal>::Ptr cloud_normals2 (new pcl::PointCloud<pcl::Normal>);
         pcl::PointIndices::Ptr inliers_cylinder (new pcl::PointIndices);
         pcl::ModelCoefficients::Ptr coefficients_cylinder (new pcl::ModelCoefficients);
-      
+
         std::cerr << "PointCloud has: " << cloud_clusters[i]->points.size () << " data points." << std::endl;
-      
+
         // Build a passthrough filter to remove spurious NaNs
         pass.setInputCloud (cloud_clusters[i]);
         pass.setFilterFieldName ("z");
@@ -403,13 +403,13 @@ cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
         pass.setFilterLimits (0, 1.5);//modified
         pass.filter (*cloud_filtered2);
         std::cerr << "PointCloud after Pass filtering: " << cloud_filtered2->points.size () << " data points." << std::endl;
-      
+
         // Estimate point normals
         ne.setSearchMethod (tree2);
         ne.setInputCloud (cloud_filtered2);
         ne.setKSearch (50);
         ne.compute (*cloud_normals2);
-      
+
         // Create the segmentation object for cylinder segmentation and set all the parameters
         seg2.setOptimizeCoefficients (true);
         seg2.setModelType (pcl::SACMODEL_CYLINDER);
@@ -421,11 +421,11 @@ cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
         seg2.setRadiusLimits (0.02, 0.08);//modified
         seg2.setInputCloud (cloud_filtered2);
         seg2.setInputNormals (cloud_normals2);
-      
+
         // Obtain the cylinder inliers and coefficients
         seg2.segment (*inliers_cylinder, *coefficients_cylinder);
         // std::cerr << "Cylinder coefficients: " << *coefficients_cylinder << std::endl;
-    
+
         // Write the cylinder inliers to disk
         extract.setInputCloud (cloud_filtered2);
         extract.setIndices (inliers_cylinder);
@@ -433,18 +433,18 @@ cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
         pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_cylinder (new pcl::PointCloud<pcl::PointXYZ> ());
         extract.filter (*cloud_cylinder);
         sensor_msgs::PointCloud2::Ptr output_cyl (new sensor_msgs::PointCloud2);
-      
+
         //color
         // pcl::PointCloud<pcl::PointXYZRGB> cloud_cylinder_color;
         // pcl::copyPointCloud(*cloud_cylinder, cloud_cylinder_color);
         // uint8_t r = 0, g = 255, b = 0;    // Example: Red color
         // uint32_t rgb = ((uint32_t)r << 16 | (uint32_t)g << 8 | (uint32_t)b);
-      
+
         // for (size_t i = i; i < cloud_cylinder->points.size(); ++i) {
         //     // output_cyl->points[i].r = 200;
         //     cloud_cylinder_color.points[i].rgb = *reinterpret_cast<float*>(&rgb);
         // }
-      
+
         #if 1
         // publish cylinder inlier cloud
         pcl::toROSMsg (*cloud_cylinder, *output_cyl);
@@ -473,24 +473,24 @@ cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
     ///@{   Cylinder Centroids
         Eigen::Vector4f centroid;
         pcl::compute3DCentroid(*cloud_cylinder, centroid);
-        
-        
+
+
         ROS_INFO("Centroid x: %f  y: %f  z: %f\n", centroid[0], centroid[1], centroid[2]);
 
         if (start_record==0){start = ros::Time::now();}// Record the time before starting recording
         if ((centroid[1]<1.35) &&(centroid[1]>0.3)){start_record=1;}// Start recording
-        
+
         if (start_record==1)// Save data to .txt file
         {
             t=ros::Time::now()-start;
             //Compute filter value
-            filtered_x=KalmanFilter(info_x,centroid[0], 1, -0.0065*d.toSec()); 
+            filtered_x=KalmanFilter(info_x,centroid[0], 1, -0.0065*d.toSec());
             filtered_y=KalmanFilter(info_y,centroid[1], 1, -0.25*d.toSec());
             filtered_z=KalmanFilter(info_z,centroid[2], 1, 0);
-            outfile.open("/home/chenxiaoyu/Data2/data.txt", ios::binary | ios::app | ios::in | ios::out);
-            outfile<<centroid[0]<<" "<<centroid[1]<<" "<< centroid[2]<<" "<< t.toSec() 
-                <<" "<<filtered_x<<" "<<filtered_y<<" "<<filtered_z<<"\n";
-            outfile.close();
+            //outfile.open("/home/chenxiaoyu/Data2/data.txt", ios::binary | ios::app | ios::in | ios::out);
+            //outfile<<centroid[0]<<" "<<centroid[1]<<" "<< centroid[2]<<" "<< t.toSec()
+                //<<" "<<filtered_x<<" "<<filtered_y<<" "<<filtered_z<<"\n";
+            //outfile.close();
             ROS_INFO("Filtered Centroid x: %f  y: %f  z: %f\n", filtered_x, filtered_y, filtered_z);
             #if 1
             centroid[0]=filtered_x;
@@ -516,10 +516,10 @@ cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
         }
         centroids.push_back(centroid);
     ///@}
-    
+
     ///@{   Cylinder IDs
         double min_dist = 1000000;
-        double thresh = 0.4;
+        double thresh = 0.15;
         int centroid_id;
 
         for (size_t cdx = 0; cdx < g_last_centroids.size(); ++cdx) {
@@ -576,39 +576,39 @@ cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
         else if (centroid_id == 1) {
             marker.color.r = 0.0f;
             marker.color.g = 0.0f;
-            marker.color.b = 1.0f;          
+            marker.color.b = 1.0f;
         }
         else if (centroid_id == 2) {
             marker.color.r = 0.0f;
             marker.color.g = 1.0f;
-            marker.color.b = 0.0f;          
+            marker.color.b = 0.0f;
         }
         else if (centroid_id == 3) {
             marker.color.r = 0.5f;
             marker.color.g = 0.5f;
-            marker.color.b = 0.0f;          
+            marker.color.b = 0.0f;
         }
         else if (centroid_id == 4) {
             marker.color.r = 0.5f;
             marker.color.g = 0.0f;
-            marker.color.b = 0.5f;          
+            marker.color.b = 0.5f;
         }
         else if (centroid_id == 5) {
             marker.color.r = 0.0f;
             marker.color.g = 0.5f;
-            marker.color.b = 0.5f;          
+            marker.color.b = 0.5f;
         }
         else{
             marker.color.r = 0.0f;
             marker.color.g = 0.0f;
-            marker.color.b = 0.0f;          
-        } 
+            marker.color.b = 0.0f;
+        }
         marker.color.a = 1.0f;
         marker.lifetime = ros::Duration(0.2);
         ma.markers.push_back(marker);
     ///@}
     }
-    
+
 
 
     // update centroids
@@ -636,13 +636,15 @@ cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
         pose_marker.header.frame_id = target_frame;
         pose_markers.markers.push_back(pose_marker);
     }
+    if (!current_centroid_ids.empty()){
     pose_markers.header.stamp = input->header.stamp;
     pose_markers.header.frame_id = target_frame;
-    g_pub_pose_markers.publish(pose_markers);
+    g_pub_pose_markers.publish(pose_markers);}
+
   ///@}
-  
+
     d = ros::Time::now() - begin;
-  
+
     ROS_INFO("Cycle time %f", d.toSec());
     printf("--------------------------------------------------------------\n\n");
     return;
@@ -654,18 +656,18 @@ int main (int argc, char** argv)
     // Initialize ROS
     ros::init (argc, argv, "cluster_extraction");
     ros::NodeHandle nh;
-   
+
     // Clear data
-    outfile.open("/home/chenxiaoyu/Data2/data.txt", ios::trunc);
-    outfile.close();
-    
+    //outfile.open("/home/chenxiaoyu/Data2/data.txt", ios::trunc);
+    //outfile.close();
+
     Init_KalmanInfo(info_x, 1e-03, 0.004, 0.269);
     Init_KalmanInfo(info_y, 1e-03, 0.006, 1.25);
     Init_KalmanInfo(info_z, 1e-05, 0.002, 0.8);
-    
+
     // Create a ROS subscriber for the input point cloud
     ros::Subscriber sub = nh.subscribe ("/head_camera/depth_registered/points", 1, cloud_cb);
-    
+
     // Create a ROS publisher for the output point cloud
     g_pub_cyl_cloud = nh.advertise<sensor_msgs::PointCloud2> ("cyl_cloud", 100);
     g_pub_cropped_cloud = nh.advertise<sensor_msgs::PointCloud2> ("cropped_cloud", 100);
