@@ -179,6 +179,9 @@ cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
         g_has_transform = true;
     }
 
+
+
+
     pcl_ros::transformPointCloud(*downsampled_XYZ, transformed_cloud, get_tf_from_stamped_tf(g_transform));
     *downsampled_XYZ  = transformed_cloud;
     d = ros::Time::now() - begin;

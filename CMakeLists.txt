@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 2.8.3)
-project(object_track)
+project(object_track2)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
 # add_compile_options(-std=c++11)
@@ -199,5 +199,5 @@ include_directories(
 ## Add folders to be run by python nosetests
 # catkin_add_nosetests(test)
 
-add_executable(tracker src/tracker.cpp)
-target_link_libraries(tracker ${catkin_LIBRARIES})
+add_executable(tracker2 src/tracker.cpp)
+target_link_libraries(tracker2 ${catkin_LIBRARIES})
