@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <launch>
-  <node pkg="object_track2" type="tracker2" name="object_tracker" output="screen" respawn="false">
+  <node pkg="object_track" type="tracker" name="object_tracker" output="screen" respawn="false">
     <!--set nput data and target frame-->
     <remap from="input" to="/head_camera/depth_registered/points"/>
     <param name="target_frame" value="/base_footprint"/>
