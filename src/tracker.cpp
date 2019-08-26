@@ -48,15 +48,22 @@ std::vector<std::pair<Eigen::Vector4f, int> > g_last_centroids;
 tf::StampedTransform g_transform;
 bool g_has_transform = false;
 int g_next_id = 0;
-char target_frame[]="base_footprint";
 pcl::PCDWriter writer;
 ofstream outfile;
 ros::Time start;
 ros::Duration t;
 int start_record=0;// Flag of starting recording data
-double filtered_x;
-double filtered_y;
-double filtered_z;
+double filtered_x, filtered_y, filtered_z;
+double xmin_, ymin_, zmin_;
+double xmax_, ymax_, zmax_;
+double xspeed_, yspeed_, zspeed_;
+double x_Q_, y_Q_, z_Q_;
+double x_R_, y_R_, z_R_;
+double x_init_, y_init_, z_init_;
+std::string target_frame_;
+
+
+
 
 tf::Transform get_tf_from_stamped_tf(tf::StampedTransform sTf)
 {
@@ -164,10 +171,10 @@ cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
     if (!g_has_transform) {
         tf::TransformListener listener;
         //Block until a transform is possible or it times out
-        listener.waitForTransform(target_frame, input->header.frame_id,
+        listener.waitForTransform(target_frame_, input->header.frame_id,
                                   ros::Time(0), ros::Duration(10.0));
         //Get the transform between two frames by frame ID
-        listener.lookupTransform( target_frame, input->header.frame_id, ros::Time(0), g_transform);
+        listener.lookupTransform( target_frame_, input->header.frame_id, ros::Time(0), g_transform);
 
         g_has_transform = true;
     }
@@ -185,7 +192,7 @@ cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
 
     sensor_msgs::PointCloud2::Ptr output_cropped (new sensor_msgs::PointCloud2);
     pcl::toROSMsg (*downsampled_XYZ, *output_cropped);
-    output_cropped->header.frame_id = target_frame;
+    output_cropped->header.frame_id = target_frame_;
     g_pub_cropped_cloud.publish(output_cropped);
     #endif
 
@@ -196,13 +203,13 @@ cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
   ///@{**********Crop region of interest****
     //box size
     Eigen::Vector4f minPoint;
-    minPoint[0]=0.1;  // define minimum point x
-    minPoint[1]=0.4; // define minimum point y
-    minPoint[2]=0.66;  // define minimum point z
+    minPoint[0]=xmin_;  // define minimum point x
+    minPoint[1]=ymin_; // define minimum point y
+    minPoint[2]=zmin_;  // define minimum point z
     Eigen::Vector4f maxPoint;
-    maxPoint[0]=0.42;  // define max point x
-    maxPoint[1]=1.6;  // define max point y
-    maxPoint[2]=0.9;  // define max point z
+    maxPoint[0]=xmax_;  // define max point x
+    maxPoint[1]=ymax_;  // define max point y
+    maxPoint[2]=zmax_;  // define max point z
 
     /* Eigen::Vector4f minPoint;
     minPoint[0]=0.2;  // define minimum point x
@@ -245,7 +252,7 @@ cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
     #if 1
     sensor_msgs::PointCloud2::Ptr output_cropped (new sensor_msgs::PointCloud2);
     pcl::toROSMsg (*downsampled_XYZ, *output_cropped);
-    output_cropped->header.frame_id = target_frame;
+    output_cropped->header.frame_id = target_frame_;
     g_pub_cropped_cloud.publish(output_cropped);
     #endif
 
@@ -317,7 +324,7 @@ cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
         //publish plane pointcloud
         sensor_msgs::PointCloud2::Ptr output_plane (new sensor_msgs::PointCloud2);
         pcl::toROSMsg (*cloud_plane, *output_plane);
-        output_plane->header.frame_id = target_frame;
+        output_plane->header.frame_id = target_frame_;
         g_pub_plane_cloud.publish(output_plane);
     #endif
 
@@ -362,7 +369,7 @@ cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
         //Convert the pointcloud to be used in ROS
         sensor_msgs::PointCloud2::Ptr output (new sensor_msgs::PointCloud2);
         pcl::toROSMsg (*cloud_cluster, *output);
-        output->header.frame_id = target_frame;
+        output->header.frame_id = target_frame_;
 
         // Publish the data
         g_pub_vec[j].publish (output);
@@ -448,7 +455,7 @@ cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
         #if 1
         // publish cylinder inlier cloud
         pcl::toROSMsg (*cloud_cylinder, *output_cyl);
-        output_cyl->header.frame_id = target_frame;
+        output_cyl->header.frame_id = target_frame_;
         g_pub_cyl_cloud.publish(output_cyl);
         #endif
 
@@ -484,9 +491,9 @@ cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
         {
             t=ros::Time::now()-start;
             //Compute filter value
-            filtered_x=KalmanFilter(info_x,centroid[0], 1, -0.0065*d.toSec());
-            filtered_y=KalmanFilter(info_y,centroid[1], 1, -0.25*d.toSec());
-            filtered_z=KalmanFilter(info_z,centroid[2], 1, 0);
+            filtered_x=KalmanFilter(info_x,centroid[0], 1, xspeed_*d.toSec());
+            filtered_y=KalmanFilter(info_y,centroid[1], 1, yspeed_*d.toSec());
+            filtered_z=KalmanFilter(info_z,centroid[2], 1, zspeed_*d.toSec());
             //outfile.open("/home/chenxiaoyu/Data2/data.txt", ios::binary | ios::app | ios::in | ios::out);
             //outfile<<centroid[0]<<" "<<centroid[1]<<" "<< centroid[2]<<" "<< t.toSec()
                 //<<" "<<filtered_x<<" "<<filtered_y<<" "<<filtered_z<<"\n";
@@ -498,7 +505,7 @@ cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
             centroid[2]=filtered_z;
             #endif
             geometry_msgs::PoseStamped pos;
-            pos.header.frame_id=target_frame;
+            pos.header.frame_id=target_frame_;
             pos.header.stamp= ros::Time::now();
             pos.pose.position.x=centroid[0];
             pos.pose.position.y=centroid[1];
@@ -506,7 +513,7 @@ cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
             pos.pose.orientation.w=1.0;
             g_pub_pose.publish(pos);
             geometry_msgs::PoseStamped pos_filtered;
-            pos_filtered.header.frame_id=target_frame;
+            pos_filtered.header.frame_id=target_frame_;
             pos_filtered.header.stamp= ros::Time::now();
             pos_filtered.pose.position.x=filtered_x;
             pos_filtered.pose.position.y=filtered_y;
@@ -556,7 +563,7 @@ cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
     ///@{   Cylinder Markers
         visualization_msgs::Marker marker;
         marker.header.stamp = ros::Time::now();
-        marker.header.frame_id = target_frame;
+        marker.header.frame_id = target_frame_;
         marker.ns = "cylinder";
         marker.id = i;
         marker.type = visualization_msgs::Marker::CYLINDER;
@@ -627,18 +634,18 @@ cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
         ar_track_alvar_msgs::AlvarMarker pose_marker;
         pose_marker.id = current_centroid_ids[i].second;
         pose_marker.pose.header.stamp = input->header.stamp;
-        pose_marker.pose.header.frame_id = target_frame;
+        pose_marker.pose.header.frame_id = target_frame_;
         pose_marker.pose.pose.position.x = current_centroid_ids[i].first[0];
         pose_marker.pose.pose.position.y = current_centroid_ids[i].first[1];
         pose_marker.pose.pose.position.z = current_centroid_ids[i].first[2];
         pose_marker.pose.pose.orientation.w = 1.0;
         pose_marker.header.stamp = input->header.stamp;
-        pose_marker.header.frame_id = target_frame;
+        pose_marker.header.frame_id = target_frame_;
         pose_markers.markers.push_back(pose_marker);
     }
     if (!current_centroid_ids.empty()){
     pose_markers.header.stamp = input->header.stamp;
-    pose_markers.header.frame_id = target_frame;
+    pose_markers.header.frame_id = target_frame_;
     g_pub_pose_markers.publish(pose_markers);}
 
   ///@}
@@ -656,17 +663,36 @@ int main (int argc, char** argv)
     // Initialize ROS
     ros::init (argc, argv, "cluster_extraction");
     ros::NodeHandle nh;
+    nh.param("xmin",xmin_,0.1);
+    nh.param("ymin",ymin_,0.4);
+    nh.param("zmin",zmin_,0.66);
+    nh.param("xmax",xmax_,0.42);
+    nh.param("ymax",ymax_,1.6);
+    nh.param("zmax",zmax_,0.9);
+    nh.param("xspeed",xspeed_,-0.0065);
+    nh.param("yspeed",yspeed_,-0.25);
+    nh.param("zspeed",zspeed_,0.0);
+    nh.param("x_Q",x_Q_,1e-03);
+    nh.param("y_Q",y_Q_,1e-03);
+    nh.param("z_Q",z_Q_,1e-03);
+    nh.param("x_R",x_R_,0.004);
+    nh.param("y_R",y_R_,0.006);
+    nh.param("z_R",z_R_,0.002);
+    nh.param("x_init",x_init_,0.269);
+    nh.param("y_init",y_init_,1.25);
+    nh.param("z_init",z_init_,0.8);
+    nh.param("target_frame",target_frame_,std::string("/base_footprint"));
 
     // Clear data
     //outfile.open("/home/chenxiaoyu/Data2/data.txt", ios::trunc);
     //outfile.close();
 
-    Init_KalmanInfo(info_x, 1e-03, 0.004, 0.269);
-    Init_KalmanInfo(info_y, 1e-03, 0.006, 1.25);
-    Init_KalmanInfo(info_z, 1e-05, 0.002, 0.8);
+    Init_KalmanInfo(info_x, x_Q_, x_R_, x_init_);
+    Init_KalmanInfo(info_y, y_Q_, y_R_, y_init_);
+    Init_KalmanInfo(info_z, z_Q_, z_R_, z_init_);
 
     // Create a ROS subscriber for the input point cloud
-    ros::Subscriber sub = nh.subscribe ("/head_camera/depth_registered/points", 1, cloud_cb);
+    ros::Subscriber sub = nh.subscribe ("input", 1, cloud_cb);
 
     // Create a ROS publisher for the output point cloud
     g_pub_cyl_cloud = nh.advertise<sensor_msgs::PointCloud2> ("cyl_cloud", 100);

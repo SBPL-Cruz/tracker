@@ -1,10 +1,35 @@
 <?xml version="1.0" encoding="utf-8"?>
 <launch>
-  <node pkg="object_track" type="tracker" name="object_tracker" output="screen" respawn="false"/>
-    <remap from="target_frame" to="base_footprint"/>
+  <node pkg="object_track2" type="tracker2" name="object_tracker" output="screen" respawn="false">
+    <!--set nput data and target frame-->
     <remap from="input" to="/head_camera/depth_registered/points"/>
+    <param name="target_frame" value="/base_footprint"/>
 
+    <!--crop box size-->
+    <param name="xmin" value="0.1"/>
+    <param name="ymin" value="0.4"/>
+    <param name="zmin" value="0.66"/>
 
+    <param name="xmax" value="0.42"/>
+    <param name="ymax" value="1.6"/>
+    <param name="zmax" value="0.9"/>
+
+    <!--Kalman filter parameters setting-->
+      <!--set Q and R-->
+      <param name="x_Q" value="1e-03"/>
+      <param name="y_Q" value="1e-03"/>
+      <param name="z_Q" value="1e-03"/>
+      <param name="x_R" value="0.004"/>
+      <param name="y_R" value="0.006"/>
+      <param name="z_R" value="0.002"/>
+      <!--set initial position-->
+      <param name="x_init" value="0.269"/>
+      <param name="y_init" value="1.25"/>
+      <param name="z_init" value="0.8"/>
+      <!--set speed-->
+      <param name="xspeed" value="-0.0065"/>
+      <param name="yspeed" value="-0.25"/>
+      <param name="zspeed" value="0.0"/>
 
   <!-- Run a python script to the send a service call to gazebo_ros to spawn a URDF robot -->
   <!-- <param name="robot_description" command="cat '$(find urdf)urdf/walker.urdf'" />-->
