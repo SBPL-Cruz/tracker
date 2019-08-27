@@ -44,7 +44,6 @@ $ roslaunch wheeled_walker planning_context_walker.launch
 ### 3. Launch camera
 ```
 $ roslaunch realsense2_camera rs_rgbd.launch camera:=head_camera
-
 ```
 ### 4. Launch object tracker
 ```
