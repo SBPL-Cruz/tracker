@@ -57,8 +57,8 @@ Open rviz, open file catkin_ws/src/wheeled_walker/config/cruzr.rviz, choose the 
 "cyl_cloud": Cylinder fitted point clouds.  
 "cropped_cloud": Cropped point clouds.  
 "plane_cloud": Extracted plane point clouds.  
-"ar_pose_marker": Cylinder ID and coordinates. 
-"visualization_markers": cylinder marker.
+"ar_pose_marker": Cylinder ID and coordinates.  
+"visualization_markers": cylinder Marker.  
 "pose": Coordinates.  
 **"pose_filtered": Filtered coordinates.**
 
