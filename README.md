@@ -35,6 +35,10 @@ $ su
 Password: aa
 $ ./walker_arm_controller_rightLimb
 ```
+Lock the arm
+```
+$ rosservice call /walker/controller/enable "data: true" 
+```
 Then launch model  
 ```
 $ssh cruiser@192.168.11.123
