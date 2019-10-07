@@ -1,17 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <launch>
+  <param name="ymax" value="1.0"/>
+  <param name="xmin" value="0.1"/>
+  <param name="ymin" value="0.1"/>
+  <param name="xmax" value="0.42"/>
+  <param name="x_init" value="0.269"/>
+  <param name="y_init" value="1.0"/>
+  <param name="z_init" value="0.8"/>
+
   <node pkg="object_track" type="tracker" name="object_tracker" output="screen" respawn="false">
     <!--set nput data and target frame-->
     <remap from="input" to="/head_camera/depth_registered/points"/>
     <param name="target_frame" value="/base_footprint"/>
 
     <!--crop box size-->
-    <param name="xmin" value="0.1"/>
-    <param name="ymin" value="0.4"/>
-    <param name="zmin" value="0.66"/>
 
-    <param name="xmax" value="0.42"/>
-    <param name="ymax" value="1.6"/>
+    <param name="zmin" value="0.7"/>
+
+    <!-- <param name="ymax" value="1.6"/> -->
     <param name="zmax" value="0.9"/>
 
     <!--Kalman filter parameters setting-->
@@ -23,9 +29,6 @@
       <param name="y_R" value="0.006"/>
       <param name="z_R" value="0.002"/>
       <!--set initial position-->
-      <param name="x_init" value="0.269"/>
-      <param name="y_init" value="1.25"/>
-      <param name="z_init" value="0.8"/>
       <!--set speed-->
       <param name="xspeed" value="-0.0065"/>
       <param name="yspeed" value="-0.25"/>
