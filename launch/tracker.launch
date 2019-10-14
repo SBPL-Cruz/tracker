@@ -3,7 +3,7 @@
   <param name="ymax" value="1.0"/>
   <param name="xmin" value="0.1"/>
   <param name="ymin" value="0.1"/>
-  <param name="xmax" value="0.42"/>
+  <param name="xmax" value="0.6"/>
   <param name="x_init" value="0.269"/>
   <param name="y_init" value="1.0"/>
   <param name="z_init" value="0.8"/>

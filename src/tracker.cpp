@@ -61,7 +61,8 @@ double x_Q_, y_Q_, z_Q_;
 double x_R_, y_R_, z_R_;
 double x_init_, y_init_, z_init_;
 std::string target_frame_;
-
+bool single_object_found = false;
+int ignore_initial_value_count = 0;
 
 
 
@@ -263,73 +264,14 @@ cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
     d = ros::Time::now() - begin;
     ROS_INFO("cropping at: %f", d.toSec());
 
-  ///@}
-
-  ///@{**********Clustering****************
-    //Create the SACSegmentation object and set the model and method type
-    // pcl::ModelCoefficients::Ptr coefficients (new pcl::ModelCoefficients ());
-    // pcl::PointIndices::Ptr inliers (new pcl::PointIndices ());
-    // // Create the segmentation object
-    // pcl::SACSegmentation<pcl::PointXYZ> seg;
-    // // Optional
-    // seg.setOptimizeCoefficients (true);
-    // // Mandatory
-    // seg.setModelType (pcl::SACMODEL_PLANE);
-    // seg.setMethodType (pcl::SAC_RANSAC);//For more info: wikipedia.org/wiki/RANSAC
-    // seg.setMaxIterations (100);
-    //
-    // //planemodified
-    // seg.setDistanceThreshold (0.05);//How close a point must be to the model to considered an inlier
-    // //seg.setDistanceThreshold (0.02);
-    //
-    // int i = 0, nr_points = (int) downsampled_XYZ->points.size ();
-    //
-    // //Contains the plane point cloud
-    // pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_plane (new pcl::PointCloud<pcl::PointXYZ> ());
-    // // While 30% of the original cloud is still there
-    // while (downsampled_XYZ->points.size () > 0.3 * nr_points)
-    // {
-    // 	if (!ros::ok())
-    // 		break;
-    //     // Segment the largest planar component from the remaining cloud
-    //     seg.setInputCloud (downsampled_XYZ);
-    //     seg.segment (*inliers, *coefficients);
-    //
-    //     if (inliers->indices.size () == 0)
-    //     {
-    //         std::cerr << "Could not estimate a planar model for the given dataset." << std::endl;
-    //         break;
-    //     }
-    //
-    //     // Extract the planar inliers from the input cloud
-    //     pcl::ExtractIndices<pcl::PointXYZ> extract;
-    //     extract.setInputCloud (downsampled_XYZ);
-    //     extract.setIndices (inliers);
-    //     extract.setNegative (false);
-    //
-    //     // Get the points associated with the planar surface
-    //     extract.filter (*cloud_plane);
-    //
-    //     // std::cerr << "PointCloud representing the planar component: "
-    //     //         << cloud_plane->width * cloud_plane->height << " data points." << std::endl;
-    //     // std::stringstream ss;
-    //     // ss << "table_scene_lms400_plane_" << i << ".pcd";
-    //     // writer.write<pcl::PointXYZ> (ss.str (), *cloud_p, false);
-    //
-    //     // Remove the planar inliers, extract the rest
-    //     extract.setNegative (true);
-    //     extract.filter (*cloud_f);
-    //     downsampled_XYZ.swap(cloud_f);
-    //     i++;
-    // }
-    //
-    // #if 1
-    //     //publish plane pointcloud
-    //     sensor_msgs::PointCloud2::Ptr output_plane (new sensor_msgs::PointCloud2);
-    //     pcl::toROSMsg (*cloud_plane, *output_plane);
-    //     output_plane->header.frame_id = target_frame_;
-    //     g_pub_plane_cloud.publish(output_plane);
-    // #endif
+    if ( downsampled_XYZ->width * downsampled_XYZ->height == 0)
+    {
+        // single_object_found = false;
+        ignore_initial_value_count = 0;
+        printf("ignore_initial_value_count: %d\n", ignore_initial_value_count);
+        return;
+    }
+    // single_object_found = true;
 
     // Creating the KdTree object for the search method of the extraction
     pcl::search::KdTree<pcl::PointXYZ>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZ>);
@@ -488,10 +430,15 @@ cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
         ROS_INFO("Centroid x: %f  y: %f  z: %f\n", centroid[0], centroid[1], centroid[2]);
 
         if (start_record==0){start = ros::Time::now();}// Record the time before starting recording
-        if ((centroid[1]<1.5) &&(centroid[1]>0.3)){start_record=1;}// Start recording
+        if ((centroid[1]<1.5) &&(centroid[1]>0.3)){
+          start_record=1;
+          ignore_initial_value_count += 1;
+        }// Start recording
+        printf("ignore_initial_value_count : %d\n", ignore_initial_value_count);
 
-        if (start_record==1)// Save data to .txt file
+        if (start_record==1 && ignore_initial_value_count > 100)// Save data to .txt file
         {
+
             t=ros::Time::now()-start;
             //Compute filter value
             filtered_x=KalmanFilter(info_x,centroid[0], 1, xspeed_*d.toSec());
@@ -647,10 +594,13 @@ cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
         pose_marker.header.frame_id = target_frame_;
         pose_markers.markers.push_back(pose_marker);
     }
-    if (!current_centroid_ids.empty()){
-    pose_markers.header.stamp = input->header.stamp;
-    pose_markers.header.frame_id = target_frame_;
-    g_pub_pose_markers.publish(pose_markers);}
+
+    if (!current_centroid_ids.empty())
+    {
+      pose_markers.header.stamp = input->header.stamp;
+      pose_markers.header.frame_id = target_frame_;
+      g_pub_pose_markers.publish(pose_markers);
+    }
 
   ///@}
 
